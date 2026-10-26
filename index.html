@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important} body{margin:0} img{max-width:100%}</style>
+<title>Helicopter AR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<script type="module" src="model-viewer.min.js"></script>
+</head>
+<body>
+<style>
+/* Layout: phone first. Model stage on top, mechanism picker under the thumb, lesson card and quiz below. */
+:root {
+  --bg: #eef0f1;
+  --surface: #ffffff;
+  --stage: #e3e7ea;
+  --ink: #1a1d21;
+  --muted: #5a6169;
+  --line: #d3d8dc;
+  --red: #c4211a;
+  --red-ink: #ffffff;
+  --signal: #e8a900;
+  --signal-soft: #fff3cc;
+  --good: #1f7a45;
+  --bad: #b3261e;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111316; --surface: #1a1d21; --stage: #181b1f; --ink: #eceef0; --muted: #9aa2aa;
+    --line: #2d3238; --red: #ff4b3e; --red-ink: #1a0503; --signal: #ffc41f; --signal-soft: #3a3110;
+    --good: #5fd08e; --bad: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111316; --surface: #1a1d21; --stage: #181b1f; --ink: #eceef0; --muted: #9aa2aa;
+  --line: #2d3238; --red: #ff4b3e; --red-ink: #1a0503; --signal: #ffc41f; --signal-soft: #3a3110;
+  --good: #5fd08e; --bad: #ff8a80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); max-width: 1100px; margin: 0 auto; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+
+.top { padding-block: 16px 12px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 2px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(32px, 6vw, 46px); line-height: 1; margin: 0; }
+h1 span { color: var(--red); }
+
+.stage { position: relative; background: var(--stage); border-radius: 14px; overflow: hidden; height: min(62vh, 620px); min-height: 360px; }
+model-viewer { width: 100%; height: 100%; background: transparent; --poster-color: transparent; --progress-bar-color: var(--red); }
+.ar-btn { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: var(--red); color: var(--red-ink); border: 0; border-radius: 999px; padding: 12px 22px; font-weight: 600; font-size: 17px; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.25); white-space: nowrap; }
+.ar-btn svg { width: 22px; height: 22px; }
+.xray { position: absolute; top: 12px; right: 12px; border: 1.5px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 15px; }
+.xray[aria-pressed="true"] { background: var(--signal); border-color: var(--signal); color: #1a1d21; }
+.hotspot { border: 2px solid var(--surface); background: var(--ink); color: var(--surface); width: 28px; height: 28px; border-radius: 50%; font-family: var(--font-mono); font-size: 13px; padding: 0; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.hotspot.active { background: var(--signal); color: #1a1d21; border-color: #1a1d21; }
+.hotspot:not([data-visible]) { opacity: .35; }
+.no-ar { position: absolute; left: 12px; right: 12px; bottom: 12px; margin: 0; font-size: 14px; color: var(--muted); background: color-mix(in srgb, var(--surface) 90%, transparent); padding: 8px 12px; border-radius: 8px; text-align: center; }
+
+.picker { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding-block: 12px; }
+.pick { border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 2px 7px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-weight: 600; font-size: 14px; color: var(--muted); }
+.pick b { font-family: var(--font-mono); font-weight: 500; font-size: 12px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid currentColor; }
+.pick[aria-pressed="true"] { color: var(--ink); border-color: var(--signal); background: var(--signal-soft); }
+.pick[aria-pressed="true"] b { background: var(--signal); border-color: var(--signal); color: #1a1d21; }
+.pick.all b { border-style: dashed; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; padding-block: 4px 8px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card h2 { font-family: var(--font-display); font-size: 30px; line-height: 1.05; margin: 0; }
+.type { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--red); margin: 0 0 4px; }
+.motion { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); gap: 8px; }
+.motion > div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.motion small { display: block; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.motion span { font-weight: 600; font-size: 14px; line-height: 1.3; display: block; }
+.motion .arrow { border: 0; display: grid; place-items: center; color: var(--muted); padding: 0; }
+.play { align-self: flex-start; background: var(--red); color: var(--red-ink); border: 0; border-radius: 8px; padding: 8px 16px; font-weight: 600; }
+.card h3 { font-size: 13px; font-family: var(--font-mono); font-weight: 500; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 4px; }
+.card p { margin: 0; }
+.toy { border-left: 3px solid var(--red); padding: 4px 0 4px 12px; }
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.note { font-size: 13px; color: var(--muted); }
+
+.quiz { padding-block: 24px 48px; }
+.quiz-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 8px 16px; margin-bottom: 14px; }
+.quiz h2 { font-family: var(--font-display); font-size: 34px; margin: 0; line-height: 1; }
+.score { font-family: var(--font-mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+.qgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.q p.qtext { font-weight: 600; margin: 0; }
+.q p.qtext i { font-style: normal; font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
+.opts { display: flex; flex-direction: column; gap: 6px; }
+.opt { text-align: left; border: 1.5px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 15px; }
+.opt:disabled { cursor: default; }
+.opt.right { border-color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--surface)); }
+.opt.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--surface)); }
+.why { font-size: 14px; color: var(--muted); margin: 0; }
+
+/* Camera mode: live camera behind the model, full screen, controls on top */
+.cam-btn { position: absolute; top: 12px; left: 12px; border: 1.5px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; z-index: 3; }
+.cam-btn svg { width: 18px; height: 18px; }
+.cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: none; }
+.stage model-viewer { position: relative; z-index: 1; }
+.stage .xray { z-index: 3; }
+.cam-bar { display: none; }
+.cam-msg { position: absolute; left: 12px; right: 12px; top: 60px; margin: 0; z-index: 3; font-size: 14px; background: var(--surface); color: var(--ink); padding: 8px 12px; border-radius: 8px; text-align: center; }
+body.cam-on { overflow: hidden; }
+body.cam-on .stage { position: fixed; inset: 0; z-index: 50; height: 100dvh; min-height: 0; border-radius: 0; background: #000; }
+body.cam-on .cam-video { display: block; }
+body.cam-on .ar-btn, body.cam-on .no-ar { display: none; }
+body.cam-on .cam-btn { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
+body.cam-on .stage .xray { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); }
+body.cam-on .cam-bar { display: flex; flex-direction: column; gap: 8px; position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0)); }
+.cam-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cam-title { color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.cam-bar .play { align-self: auto; }
+.cam-bar .picker { padding-block: 0; max-width: 640px; width: 100%; margin: 0 auto; }
+.cam-hint { color: #fff; font-size: 13px; margin: 0; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+
+@media (max-width: 760px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) {
+  .pick { font-size: 12px; }
+  .motion { grid-template-columns: minmax(0,1fr); }
+  .motion .arrow { transform: rotate(90deg); }
+}
+</style>
+
+<header class="wrap top">
+  <p class="eyebrow">D&amp;T &#xb7; Mechanisms in a toy helicopter</p>
+  <h1>Helicopter <span>AR</span></h1>
+</header>
+
+<main class="wrap">
+  <section class="stage" aria-label="3D model of the helicopter">
+    <model-viewer id="mv" src="helicopter.glb" alt="A toy helicopter whose main rotor drives two side propellers through bevel gears"
+      ar ar-modes="webxr scene-viewer quick-look" camera-controls touch-action="pan-y"
+      shadow-intensity="1" exposure="1.1" environment-image="neutral"
+      camera-orbit="40deg 68deg auto" interaction-prompt="none">
+      <button slot="ar-button" class="ar-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="m3 7 9 5 9-5M12 12v10"/></svg>
+        View on your desk
+      </button>
+      <button class="hotspot" slot="hotspot-rotor" data-key="rotor" data-position="0.0902 0.1034 0" data-normal="0 1 0" aria-label="Main rotor">1</button>
+      <button class="hotspot" slot="hotspot-turn" data-key="turn" data-position="0.0836 0.0352 0.0088" data-normal="0 0 1" aria-label="Bevel gears">2</button>
+      <button class="hotspot" slot="hotspot-split" data-key="split" data-position="0.0482 0.0429 0.0176" data-normal="0 0 1" aria-label="Gearbox">3</button>
+      <button class="hotspot" slot="hotspot-props" data-key="props" data-position="0.0097 0.0484 0.0756" data-normal="0 0 1" aria-label="Side propellers">4</button>
+      <button class="hotspot" slot="hotspot-wheels" data-key="wheels" data-position="0.0154 0.0099 0.0242" data-normal="0 0 1" aria-label="Wheels">5</button>
+    </model-viewer>
+    <video class="cam-video" id="camvideo" playsinline muted autoplay aria-hidden="true"></video>
+    <button class="cam-btn" id="cambtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      <span id="camlabel">Camera</span>
+    </button>
+    <button class="xray" id="xray" aria-pressed="false">X-ray</button>
+    <p class="cam-msg" id="cammsg" hidden></p>
+    <div class="cam-bar" id="cambar">
+      <div class="cam-row">
+        <span class="cam-title" id="camtitle"></span>
+        <button class="play" id="camplay">Play</button>
+      </div>
+      <p class="cam-hint">Drag to turn &#xb7; Pinch to zoom &#xb7; Tap a number to pick a mechanism</p>
+    </div>
+    <p class="no-ar" id="noar" hidden>AR isn&#x2019;t available here. Open this lesson on a phone or iPad in Safari or Chrome to place the helicopter on your desk.</p>
+  </section>
+
+  <nav class="picker" id="picker" aria-label="Mechanisms"></nav>
+
+  <div class="cols">
+    <article class="card" id="card" aria-live="polite"></article>
+    <aside class="card">
+      <div>
+        <h3>Using AR</h3>
+        <ol class="steps">
+          <li>Tap <b>View on your desk</b>.</li>
+          <li>Move your device slowly over the table until the helicopter appears.</li>
+          <li>Drag to move it. Pinch to make it bigger or smaller.</li>
+          <li>Put the real toy next to it and compare the parts.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>Using Camera mode</h3>
+        <ol class="steps">
+          <li>Tap <b>Camera</b> and allow camera access.</li>
+          <li>Point your device at your desk. The helicopter appears over the camera view.</li>
+          <li>Tap the numbers or the buttons at the bottom, press <b>Play</b>, and turn on <b>X-ray</b>.</li>
+          <li>Tap <b>Exit camera</b> to return to the lesson.</li>
+        </ol>
+      </div>
+      <p class="note">Android phones play the animations in AR. iPhone and iPad show the model still in AR, so play each animation in the 3D view first.</p>
+      <p class="note">Gear positions in this model are simplified for teaching. Tooth counts match the toy (12 teeth).</p>
+    </aside>
+  </div>
+</main>
+
+<section class="wrap quiz" aria-labelledby="quiz-title">
+  <div class="quiz-head">
+    <h2 id="quiz-title">Check your understanding</h2>
+    <div class="score" id="score">0 / 6 correct</div>
+  </div>
+  <div class="qgrid" id="quiz"></div>
+</section>
+
+<script type="module">
+const MECHS = {
+  rotor: {
+    num: 1, tab: 'Rotor', title: 'Main rotor and shaft', type: 'Input', anim: 'Drive',
+    input: 'Rotary: turn the main rotor by hand', output: 'Rotary: the rotor shaft turns about an upright axis',
+    how: 'The five rotor blades are fixed to a hub on top of an upright shaft. When you turn the rotor, the shaft turns with it. This is the input that drives every other moving part in the gear train.',
+    toy: 'Turn the rotor slowly and watch the side propellers. Then hold one propeller still and try to turn the rotor. What happens?'
+  },
+  turn: {
+    num: 2, tab: 'Turn 90°', title: 'Bevel gears', type: 'Bevel gears', anim: 'Drive',
+    input: 'Rotary: upright rotor shaft', output: 'Rotary: horizontal drive shaft',
+    how: 'Bevel gears have teeth cut on a cone, so two of them can mesh at 90°. The gear on the rotor shaft meshes with a gear on the horizontal drive shaft. Both have 12 teeth, so the ratio is 12 : 12 = 1 : 1. The speed stays the same; only the direction of the axis changes. Turn on X-ray to see them inside the body.',
+    toy: 'Look into the body from underneath. Find the two gears that meet at a right angle and count their teeth.'
+  },
+  split: {
+    num: 3, tab: 'Split', title: 'Gearbox: one driver, two outputs', type: 'Bevel gears', anim: 'Drive',
+    input: 'Rotary: horizontal drive shaft', output: 'Rotary: two side shafts, one to each pod',
+    how: 'At the back of the drive shaft, one driver bevel gear meshes with two more bevel gears, one on each side. Each turns a side shaft that runs out to a side pod, so one input drives two outputs. All three gears have 12 teeth, so each side shaft turns at the same speed as the rotor.',
+    toy: 'Turn the rotor and feel both side shafts through the liftarms. Do they start turning at the same moment?'
+  },
+  props: {
+    num: 4, tab: 'Props', title: 'Side propellers', type: 'Bevel gears', anim: 'Drive',
+    input: 'Rotary: side shaft (across the body)', output: 'Rotary: propeller (along the body)',
+    how: 'Inside each pod, a second pair of 12-tooth bevel gears turns the motion through 90° again, so the propeller spins on an axle that runs along the body. Every pair is 1 : 1, so one turn of the main rotor makes each propeller turn once. Both propellers spin the same way.',
+    toy: 'Put a small piece of tape on one propeller blade. Turn the main rotor exactly once. How many times does the propeller turn?'
+  },
+  wheels: {
+    num: 5, tab: 'Wheels', title: 'Wheels and axles', type: 'Wheel and axle', anim: 'Push',
+    input: 'Linear: push the helicopter along', output: 'Rotary: the wheels roll',
+    how: 'The rear axle carries two wheels, and there is a single nose wheel. Pushing the helicopter makes the wheels roll, but they are not connected to the gear train, so the rotor and propellers stay still. Each wheel turn moves the helicopter by the wheel’s circumference.',
+    toy: 'Push the helicopter along the table. Do the rotors move? Measure the wheel and work out how far one wheel turn takes it.'
+  }
+};
+const ORDER = ['rotor', 'turn', 'split', 'props', 'wheels'];
+const QUIZ = [
+  { m: 'Bevel gears', q: 'What do bevel gears do in this helicopter?', o: ['Change rotary motion into linear motion', 'Transmit rotary motion through 90°', 'Stop the rotor turning backwards', 'Make the wheels roll'], a: 1, why: 'Their teeth are cut on a cone, so they turn the drive through a right angle.' },
+  { m: 'Bevel gears', q: 'Both bevel gears have 12 teeth. The rotor turns once. How many times does the drive shaft turn?', o: ['Half a turn', '1 turn', '2 turns', '12 turns'], a: 1, why: '12 : 12 is a 1 : 1 ratio, so the speed stays the same.' },
+  { m: 'Gear train', q: 'The rotor turns 5 times. How many times does each side propeller turn?', o: ['1', '2.5', '5', '10'], a: 2, why: 'Every gear pair is 1 : 1, so the overall ratio is 1 : 1.' },
+  { m: 'Gearbox', q: 'In the central gearbox, how many outputs does the one driver gear turn?', o: ['None', 'One', 'Two', 'Four'], a: 2, why: 'One driver bevel gear turns two driven gears, one for each side shaft.' },
+  { m: 'Wheels', q: 'Why do the rotors stay still when you push the helicopter along?', o: ['The wheels are too small', 'The wheels are not connected to the gear train', 'The bevel gears are self-locking', 'The rotor is too heavy'], a: 1, why: 'The wheels roll freely on their own axles. Nothing links them to the gears.' },
+  { m: 'What if?', q: 'If the drive-shaft bevel gear had 24 teeth instead of 12, the drive shaft would turn…', o: ['twice as fast as the rotor', 'at the same speed', 'half as fast as the rotor', 'the other way only'], a: 2, why: '12 : 24 = 1 : 2, so one rotor turn gives half a turn of the drive shaft.' }
+];
+
+const mv = document.getElementById('mv');
+const picker = document.getElementById('picker');
+const card = document.getElementById('card');
+let current = 'rotor', xray = false, base = {};
+
+// ---------- Picker ----------
+[...ORDER, 'all'].forEach(k => {
+  const b = document.createElement('button');
+  b.className = 'pick' + (k === 'all' ? ' all' : '');
+  b.id = `pick-${k}`;
+  b.innerHTML = k === 'all' ? '<b>\u25b6</b>Play all' : `<b>${MECHS[k].num}</b>${MECHS[k].tab}`;
+  b.addEventListener('click', () => k === 'all' ? playAll() : select(k, true));
+  picker.appendChild(b);
+});
+mv.querySelectorAll('.hotspot').forEach(h => h.addEventListener('click', () => select(h.dataset.key, true)));
+
+function renderCard() {
+  const m = MECHS[current];
+  card.innerHTML = `
+    <div><p class="type">${m.num} of 5 \u00b7 ${m.type}</p><h2>${m.title}</h2></div>
+    <div class="motion">
+      <div><small>Input</small><span>${m.input}</span></div>
+      <div class="arrow" aria-hidden="true">\u2192</div>
+      <div><small>Output</small><span>${m.output}</span></div>
+    </div>
+    <button class="play" id="play">Play animation</button>
+    <div><h3>How it works</h3><p>${m.how}</p></div>
+    <div class="toy"><h3>Try it on the real toy</h3><p>${m.toy}</p></div>`;
+  document.getElementById('play').addEventListener('click', () => play(m.anim));
+  document.getElementById('camtitle').textContent = `${m.num}. ${m.title}`;
+}
+
+function select(k, autoplay) {
+  current = k;
+  ORDER.forEach(n => {
+    document.getElementById(`pick-${n}`).setAttribute('aria-pressed', String(n === k));
+    mv.querySelector(`[data-key="${n}"]`).classList.toggle('active', n === k);
+  });
+  document.getElementById('pick-all').setAttribute('aria-pressed', 'false');
+  renderCard();
+  highlight(k);
+  if (autoplay) play(MECHS[k].anim);
+}
+function playAll() {
+  ORDER.forEach(n => { document.getElementById(`pick-${n}`).setAttribute('aria-pressed', 'false'); mv.querySelector(`[data-key="${n}"]`).classList.remove('active'); });
+  document.getElementById('pick-all').setAttribute('aria-pressed', 'true');
+  highlight(null);
+  document.getElementById('camtitle').textContent = 'All mechanisms';
+  play('All');
+}
+
+// ---------- Model: animations, highlight, X-ray ----------
+let ready = false;
+function play(name) {
+  if (!ready) return;
+  mv.animationName = name;
+  mv.currentTime = 0;
+  mv.play({ repetitions: 1 });
+}
+const GROUP = { rotor: 'Rotor', turn: 'Turn', split: 'Split', props: 'Props', wheels: 'Wheels' };
+function highlight(k) {
+  if (!ready) return;
+  for (const m of mv.model.materials) {
+    const on = k && m.name.startsWith(GROUP[k] + '-');
+    m.setEmissiveFactor(on ? [0.5, 0.33, 0] : [0, 0, 0]);
+  }
+}
+function setXray(on) {
+  xray = on;
+  document.getElementById('xray').setAttribute('aria-pressed', String(on));
+  if (!ready) return;
+  for (const m of mv.model.materials) {
+    const alpha = m.name.startsWith('Cab-') ? 0.15 : m.name.startsWith('Frame-') ? 0.4 : 1;
+    if (alpha === 1) continue;
+    const c = base[m.name];
+    m.setAlphaMode(on ? 'BLEND' : 'OPAQUE');
+    m.pbrMetallicRoughness.setBaseColorFactor(on ? [c[0], c[1], c[2], alpha] : c);
+  }
+}
+document.getElementById('xray').addEventListener('click', () => setXray(!xray));
+
+mv.addEventListener('load', () => {
+  ready = true;
+  for (const m of mv.model.materials) base[m.name] = [...m.pbrMetallicRoughness.baseColorFactor];
+  highlight(current);
+  setXray(xray);
+  if (!mv.canActivateAR) document.getElementById('noar').hidden = false;
+});
+
+// ---------- Camera mode ----------
+const camBtn = document.getElementById('cambtn');
+const camVideo = document.getElementById('camvideo');
+const camBar = document.getElementById('cambar');
+const camMsg = document.getElementById('cammsg');
+const pickerHome = picker.nextElementSibling;
+let camStream = null;
+function camError(text) { camMsg.textContent = text; camMsg.hidden = false; setTimeout(() => { camMsg.hidden = true; }, 6000); }
+async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    camError('This browser cannot use the camera. Try Safari on iPad or Chrome on Android.'); return;
+  }
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+  } catch (e) {
+    camError(e && e.name === 'NotAllowedError'
+      ? 'Camera blocked. Allow camera access for this site in your browser settings, then try again.'
+      : 'Could not start the camera on this device.');
+    return;
+  }
+  camVideo.srcObject = camStream;
+  try { await camVideo.play(); } catch (e) {}
+  document.body.classList.add('cam-on');
+  camBar.appendChild(picker);
+  camBtn.setAttribute('aria-pressed', 'true');
+  document.getElementById('camlabel').textContent = 'Exit camera';
+}
+function stopCamera() {
+  if (camStream) camStream.getTracks().forEach(t => t.stop());
+  camStream = null;
+  camVideo.srcObject = null;
+  document.body.classList.remove('cam-on');
+  pickerHome.parentNode.insertBefore(picker, pickerHome);
+  camBtn.setAttribute('aria-pressed', 'false');
+  document.getElementById('camlabel').textContent = 'Camera';
+}
+camBtn.addEventListener('click', () => camStream ? stopCamera() : startCamera());
+document.getElementById('camplay').addEventListener('click', () => {
+  const allOn = document.getElementById('pick-all').getAttribute('aria-pressed') === 'true';
+  play(allOn ? 'All' : MECHS[current].anim);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && camStream) stopCamera(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && camStream) stopCamera(); });
+
+// ---------- Quiz ----------
+const quizEl = document.getElementById('quiz');
+let correct = 0;
+QUIZ.forEach((item, qi) => {
+  const d = document.createElement('div');
+  d.className = 'q';
+  d.innerHTML = `<p class="qtext"><i>Q${qi + 1} \u00b7 ${item.m}</i>${item.q}</p><div class="opts">${item.o.map((o, i) => `<button class="opt" data-i="${i}">${o}</button>`).join('')}</div><p class="why" hidden></p>`;
+  d.querySelectorAll('.opt').forEach(b => b.addEventListener('click', () => {
+    const i = +b.dataset.i;
+    d.querySelectorAll('.opt').forEach(x => { x.disabled = true; if (+x.dataset.i === item.a) x.classList.add('right'); });
+    const why = d.querySelector('.why');
+    why.hidden = false;
+    if (i === item.a) { correct++; why.textContent = 'Correct. ' + item.why; }
+    else { b.classList.add('wrong'); why.textContent = 'Not quite. ' + item.why; }
+    document.getElementById('score').textContent = `${correct} / ${QUIZ.length} correct`;
+  }));
+  quizEl.appendChild(d);
+});
+
+select('rotor', false);
+</script>
+
+</body>
+</html>
